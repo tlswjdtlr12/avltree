@@ -1,6 +1,9 @@
 //2014004739 신정식
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+#define BILLION 1000000000ULL
 
 typedef struct AVLNode *Position;
 typedef struct AVLNode *AVLTree;
@@ -8,23 +11,24 @@ struct AVLNode
 {
     uint64_t Key;
     uint64_t Value;
-    uint64_t Height;
+    int Height;
     AVLTree Left;
     AVLTree Right;
 };
 
 Position SingleLeft(Position P); //SingleRotateWithLeft 다른 표현
 Position SingleRight(Position P);
-Position DoubleLeft(Position P);
-Position DoubleRight(Position);
 AVLTree Insert(uint64_t ikey,uint64_t ival, AVLTree T);
 AVLTree Find(uint64_t ikey, AVLTree T);
 void PrintTree(AVLTree T, FILE* close);
 int getHeight(Position P);
-int Max(uint64_t a,uint64_t b);
+uint64_t Max(uint64_t a,uint64_t b);
 int notfound, dupli, depth;
 uint64_t pre_value;
 FILE * close;
+
+struct timespec start, end;
+double elapsed_time;
 
 // PrintTree - root left right
 void PrintTree(AVLTree T, FILE* close)
@@ -63,6 +67,7 @@ int main(int argc, char * argv[])
     if(open==NULL){puts("err : file read"); return 0;}
     AVLTree T = NULL;
     AVLTree F = NULL;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     while(fscanf(open,"%c",&infi) != EOF)
     {
         switch(infi)
@@ -85,85 +90,67 @@ int main(int argc, char * argv[])
                     depth=0;
                 }
                 else{
-                    fprintf(close,"Found (%lld,%lld) on d=%d with h=%d\n",F->Key,F->Value,depth,getHeight(F));
+                    fprintf(close,"Found (%lld,%lld) on d=%d with h=%d\n",F->Key,F->Value,depth,getHeight(F)-1);
                     depth=0;
-
                 }
                 break;
             case 'P':
                 PrintTree(T,close);
                 fprintf(close,"\n");
+                break;
             case 'Q':
+                fclose(open);
+                fclose(close);
                 // end of file
                 break;
         }
     }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_time = (end.tv_nsec - start.tv_nsec) + (end.tv_sec - start.tv_sec) * BILLION;
+    printf("Elapsed time: %lf (ns)\n", elapsed_time / 1000000000.0);
     return 0;
 }
 
 
 int getHeight(Position P)
 {
-//    if(P==NULL)
-//        return -1;
-//    else
-//        return P->Height;
-    int lh, rh;
-    if(P==NULL) return -1;
-    if(P->Left==NULL)lh=0;
-    else lh=1+P->Left->Height;
-    if(P->Right==NULL)rh=0;
-    else rh=1+P->Right->Height;
-    if(lh>rh)return lh;
-    return rh;
+    return P == NULL ? 0 : P->Height;
 }
 
-int Max(uint64_t a,uint64_t b)
+uint64_t Max(uint64_t a,uint64_t b)
 {
     uint64_t c;
     c=a>b?a:b;
     return c;
 }
 
-Position SingleLeft(Position K2)
+Position SingleLeft(Position P)
 {
-    Position K1;
+    Position R = P->Right;
+    Position L = R->Left;
 
-    K1 = K2->Left;
-    K2->Left = K1->Right;
-    K1->Right = K2;
+    R->Left = P;
+    P->Right = L;
 
-    K2->Height = Max(getHeight(K2->Left),getHeight(K2->Right))+1;
-    K1->Height = Max(getHeight(K1->Left),K2->Height)+1;
+    P->Height = Max(getHeight(P->Left),getHeight(P->Right))+1;
+    R->Height = Max(getHeight(R->Left),getHeight(R->Right))+1;
 
-    return K1; // new root
+    return R; // new root
 }
 
-Position SingleRight(Position K2)
+Position SingleRight(Position P)
 {
-    Position K1;
+    Position L = P->Left;
+    Position R = L->Right;
 
-    K1 = K2->Right;
-    K2->Right = K1->Left;
-    K1->Left = K2;
+    L->Right = P;
+    P->Left = R;
 
-    K2->Height = Max(getHeight(K2->Right),getHeight(K2->Left))+1;
-    K1->Height = Max(getHeight(K1->Right),K2->Height)+1;
+    P->Height = Max(getHeight(P->Left),getHeight(P->Right))+1;
+    L->Height = Max(getHeight(L->Left),getHeight(L->Right))+1;
 
-    return K1; // new root
+    return L; // new root
 
-}
-
-Position DoubleLeft(Position K3)
-{
-    K3->Left = SingleRight(K3->Left);
-    return SingleLeft(K3);
-}
-
-Position DoubleRight(Position K3)
-{
-    K3->Right = SingleLeft(K3->Right);
-    return SingleRight(K3);
 }
 
 AVLTree Insert(uint64_t ikey,uint64_t ival, AVLTree T)
@@ -175,40 +162,42 @@ AVLTree Insert(uint64_t ikey,uint64_t ival, AVLTree T)
         else{
             T->Key = ikey;
             T->Value = ival;
-            T->Height = 0;
+            T->Height = 1;
             T->Left = T->Right = NULL;
             return T;
         }
     }
     else if(ikey < T->Key){
         T->Left = Insert(ikey,ival,T->Left);
-        if(getHeight(T->Left)-getHeight(T->Right) == 2)
-        {
-            if(ikey < T->Left->Key)
-                T=SingleLeft(T);
-            else
-                T=DoubleLeft(T);
-        }
     }
-
     else if(ikey > T->Key){
         T->Right = Insert(ikey,ival,T->Right);
-        if(getHeight(T->Right)-getHeight(T->Left) == 2)
-        {
-            if(ikey > T->Right->Key)
-                T=SingleRight(T);
-            else
-                T=DoubleRight(T);
-        }
     }
-    else if(ikey == T->Key){
+    else{
         pre_value = T->Value;
         T->Value = ival;
         dupli=1;
         return T;
     }
-    //로테이션이 없이 Insert 될 때 Height 를 조절
-    T->Height = Max(getHeight(T->Left),getHeight(T->Right))+1;
 
+    if(getHeight(T->Left)-getHeight(T->Right) > 1)
+    {
+        if(ikey < T->Left->Key)
+            T=SingleRight(T);
+        else{
+            T->Left = SingleLeft(T->Left);
+            T = SingleRight(T);
+        }
+    }
+    else if(getHeight(T->Left)-getHeight(T->Right) < -1)
+    {
+        if(ikey > T->Right->Key)
+            T=SingleLeft(T);
+        else {
+            T->Right = SingleRight(T->Right);
+            T=SingleLeft(T);
+        }
+    }
+    T->Height = Max(getHeight(T->Left),getHeight(T->Right))+1;
     return T;
 }
