@@ -104,10 +104,18 @@ int main(int argc, char * argv[])
 
 int getHeight(Position P)
 {
-    if(P==NULL)
-        return -1;
-    else
-        return P->Height;
+//    if(P==NULL)
+//        return -1;
+//    else
+//        return P->Height;
+    int lh, rh;
+    if(P==NULL) return -1;
+    if(P->Left==NULL)lh=0;
+    else lh=1+P->Left->Height;
+    if(P->Right==NULL)rh=0;
+    else rh=1+P->Right->Height;
+    if(lh>rh)return lh;
+    return rh;
 }
 
 int Max(uint64_t a,uint64_t b)
@@ -182,6 +190,7 @@ AVLTree Insert(uint64_t ikey,uint64_t ival, AVLTree T)
                 T=DoubleLeft(T);
         }
     }
+
     else if(ikey > T->Key){
         T->Right = Insert(ikey,ival,T->Right);
         if(getHeight(T->Right)-getHeight(T->Left) == 2)
